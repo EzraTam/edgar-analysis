@@ -2,6 +2,9 @@
 Module for analyzing financial data
 """
 
+import os
+
+import json
 
 from typing import List
 
@@ -168,6 +171,16 @@ class FinancialAnalyze:
 
         return li_positions
 
+
+def generate_fin_analyze_class(cik:str,comp_nm:str,path:str)->FinancialAnalyze:
+    """
+    Function to generate FinancialAnalyze Class of a company
+    given the CIK
+    """
+    file_nm="CIK"+cik
+    with open(os.path.join(path,file_nm+'.json')) as file:
+        # Define service
+        return FinancialAnalyze(comp_nm=comp_nm,data=json.load(file))
 
 
 class InterCompaniesAnalyze:
