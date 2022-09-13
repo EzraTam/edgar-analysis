@@ -169,6 +169,7 @@ class FinancialAnalyze:
         return li_positions
 
 
+
 class InterCompaniesAnalyze:
     """
     Class for comparing financials of multiple companies
