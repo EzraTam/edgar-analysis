@@ -16,8 +16,14 @@ import pandas as pd
 
 
 def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
-    """
-    Transform financial data to pandas
+    """Transform financial data to pandas
+
+    Args:
+        data (dict): Data in Edgar dict form
+        tag (str): Tag of the data to be transformed
+
+    Returns:
+        pd.DataFrame: Result Dataframe
     """
     return pd.DataFrame(data["facts"]["us-gaap"][tag]["units"]["USD"])
 
@@ -25,53 +31,77 @@ def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
 def extract_yearly_data(
     data: dict, tag: str, col_nm: str, norm_mill: bool
 ) -> pd.DataFrame:
-    """
-    Extract yearly data for a given tag
+    """Extract yearly data for a given tag
+
+    Args:
+        data (dict): Data in Edgar dict form
+        tag (str): Tag of the values of interests
+        col_nm (str): Name of the column of the resulting data
+        norm_mill (bool): Flag for normalization values in millions
+
+    Returns:
+        pd.DataFrame: Resulting dataframe
     """
 
-    df = transform_to_df(data, tag)
-    df = df[df["fp"] == "FY"]
-    df["end"] = pd.to_datetime(df["end"], format="%Y-%m-%d")
-    df["year"] = pd.DatetimeIndex(df["end"]).year
-    df = (
-        df.sort_values(["year", "fy"], ascending=False)
+    # pylint: disable=E1101
+
+    df_res = transform_to_df(data, tag)
+    df_res = df_res[df_res["fp"] == "FY"]
+    df_res["end"] = pd.to_datetime(df_res["end"], format="%Y-%m-%d")
+    df_res["year"] = pd.DatetimeIndex(df_res["end"]).year
+    df_res = (
+        df_res.sort_values(["year", "fy"], ascending=False)
         .groupby("year")
         .head(1)[["year", "val"]]
         .reset_index(drop=True)
     )
 
     if norm_mill:
-        df["val"] = df["val"] / 1000000
+        df_res["val"] = df_res["val"] / 1000000
 
     if col_nm:
-        df = df.rename(columns={"val": col_nm})
+        df_res = df_res.rename(columns={"val": col_nm})
 
-    return df
+    return df_res
 
 
 def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
-    """
-    Extract yearly data from tag normalized to millions
+    """Extract yearly data from tag normalized to millions
+
+    Args:
+        data (dict): Company data in Edgar form 
+        tag (str): Tag of financial 
+        col_nm (str): _description_
+
+    Returns:
+        pd.DataFrame: _description_
     """
 
     return extract_yearly_data(data, tag, col_nm, norm_mill=True)
 
 
 class FinancialAnalyze:
-    """
-    Class for analysing financial data from
-    Edgar dict
+    """Class for analysing financial data from Edgar dict
     """
 
     def __init__(self, comp_nm: str, data: dict) -> None:
+        """Initialization
+
+        Args:
+            comp_nm (str): Name of the Company
+            data (dict): Data in Edgar Form
+        """
         self.comp_nm = comp_nm
         self.data = data
         self.dict_df = {}
-        self.df = None
 
     def init_yearly_data_norm(self, tag: str, col_nm: str, df_nm: str) -> None:
-        """
-        Initialize Table from dict with a given tag
+        """Initialize Table from dict with a given tag
+
+        Args:
+            tag (str): GAAP taxonomy tag of interest
+            col_nm (str): Column name of the added data
+            df_nm (str): Name of the DF in the class dict
         """
         self.dict_df[df_nm] = extract_yearly_data(
             self.data, tag, col_nm, norm_mill=True
@@ -80,10 +110,15 @@ class FinancialAnalyze:
     def add_yearly_data_norm(
         self, tag: str, col_nm: str, df_nm: str, add_row=True
     ) -> None:
-        """
-        Add yearly data - normalized to millions
-        By default insert data to existing row
+        """ Add yearly data - normalized to millions
+        By default insert data to existing row.
         Set add_row to False in order to add new column
+
+        Args:
+            tag (str): GAAP taxonomy tag of interest
+            col_nm (str): Column name of the added data
+            df_nm (str): Name of the DF in the class dict
+            add_row (bool, optional): _description_. Defaults to True.
         """
         if add_row:
             _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
@@ -104,6 +139,14 @@ class FinancialAnalyze:
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
     ):
+        """Function to add data to a given df from other df
+
+        Args:
+            source_df (str): Source dataframe
+            source_col (str): Source column in source_df
+            target_df (str): df where data in source_col should be inserted
+            col_nm (_type_, optional): Name of the resulting column. Defaults to None.
+        """
         if col_nm is None:
             col_nm = source_col
 
@@ -113,8 +156,13 @@ class FinancialAnalyze:
         )
 
     def add_cols(self, li_col_nm: List[str], res_col_nm: str, df_nm: str, drop=True):
-        """
-        Add multiple columns. Needs perhaps to be refactored
+        """Sum multiple columns. Needs perhaps to be refactored
+
+        Args:
+            li_col_nm (List[str]): List of column names to be summed
+            res_col_nm (str): Column name of the summation result
+            df_nm (str): Name of the dataframe to be edited
+            drop (bool, optional): Drop the old columns. Defaults to True.
         """
         self.dict_df[df_nm][res_col_nm] = self.dict_df[df_nm][li_col_nm].sum(axis=1)
 
@@ -124,11 +172,18 @@ class FinancialAnalyze:
     def compute_row_change(
         self, col_nm: str, df_nm: str, res_col_nm=""
     ) -> pd.DataFrame:
-        """
-        Compute yearly change in percent
+        """Compute yearly change in percent
+
+        Args:
+            col_nm (str): Name of column to compute
+            df_nm (str): Name of the corresponding dataframe
+            res_col_nm (str, optional): Name of the corresponding result column. Defaults to "".
+
+        Returns:
+            pd.DataFrame: _description_
         """
         if not res_col_nm:
-            res_col_nm = col_nm + "_change_in_perc"
+            res_col_nm = f"{col_nm}_change_in_perc"
 
         self.dict_df[df_nm][res_col_nm] = (
             (self.dict_df[df_nm][col_nm] - self.dict_df[df_nm][col_nm].shift(-1))
@@ -172,15 +227,15 @@ class FinancialAnalyze:
         return li_positions
 
 
-def generate_fin_analyze_class(cik:str,comp_nm:str,path:str)->FinancialAnalyze:
+def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAnalyze:
     """
     Function to generate FinancialAnalyze Class of a company
     given the CIK
     """
-    file_nm="CIK"+cik
-    with open(os.path.join(path,file_nm+'.json')) as file:
+    file_nm = "CIK" + cik
+    with open(os.path.join(path, file_nm + ".json")) as file:
         # Define service
-        return FinancialAnalyze(comp_nm=comp_nm,data=json.load(file))
+        return FinancialAnalyze(comp_nm=comp_nm, data=json.load(file))
 
 
 class InterCompaniesAnalyze:
@@ -204,16 +259,20 @@ class InterCompaniesAnalyze:
 
         li_df = []
 
-        for CompService in self.li_comp_obj:
-            comp_nm = CompService.comp_nm
+        for comp_serv in self.li_comp_obj:
+            comp_nm = comp_serv.comp_nm
 
-            if df_name in CompService.dict_df.keys():
-                df = CompService.dict_df[df_name]
+            if df_name in comp_serv.dict_df.keys():
+                df_comp = comp_serv.dict_df[df_name]
                 li_col_to_drop = [
-                    col for col in list(df.columns) if col not in ["year", quantity]
+                    col
+                    for col in list(df_comp.columns)
+                    if col not in ["year", quantity]
                 ]
-                df = df.drop(columns=li_col_to_drop).rename(columns={quantity: comp_nm})
-                li_df.append(df)
+                df_comp = df_comp.drop(columns=li_col_to_drop).rename(
+                    columns={quantity: comp_nm}
+                )
+                li_df.append(df_comp)
 
         self.dict_df[quantity] = reduce(
             lambda left, right: pd.merge(left, right, on=["year"], how="outer"), li_df
