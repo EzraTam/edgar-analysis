@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "edgar-analysis"
+version = "0.1.0"
+description = ""
+authors = ["Ezra Tampubolon <ezra.tampubolon@norcom.de>"]
+readme = "README.md"
+packages = [{include = "edgar_analysis"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+ipykernel = "^6.16.0"
+pandas = "^1.5.0"
+seaborn = "^0.12.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^2.15.3"
+black = "^22.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -233,7 +233,7 @@ def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAn
     given the CIK
     """
     file_nm = "CIK" + cik
-    with open(os.path.join(path, file_nm + ".json")) as file:
+    with open(os.path.join(path,f"{file_nm}.json")) as file:
         # Define service
         return FinancialAnalyze(comp_nm=comp_nm, data=json.load(file))
 
