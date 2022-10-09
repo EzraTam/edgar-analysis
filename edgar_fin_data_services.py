@@ -239,6 +239,8 @@ class FinancialAnalyze:
             self.dict_df[df_nm][numer_col_nm] / self.dict_df[df_nm][denom_col_nm]
         ) * 100
 
+    # Second Order Methods
+
     def create_df(self, df_nm: str, how: dict) -> None:
         """Workflow function
 
@@ -271,6 +273,55 @@ class FinancialAnalyze:
                             res_col_nm=step["col_nm"],
                             df_nm=df_nm,
                         )
+
+    # Third-Order Methods
+    def generate_deposit_df(self,how_gen:dict):
+        # DF to generate
+        _DF_NM="ib_deposits"
+
+        how={}
+        
+        # Initialization by generating data for the column "interest_bearing_deposit_liabilities"
+        how["init"]={}
+        
+        # Data dict for the column "interest_bearing_deposit_liabilities"
+        how["init"]["col_nm"]="interest_bearing_deposit_liabilities"
+        how["init"]["how"]=how_gen["interest_bearing_deposit_liabilities"]
+
+        # Additional Columns
+
+        how["add"]=[]
+
+        # Compute yearly change - ib_deposit
+        how_temp={}
+        how_temp["col_nm"]="interest_bearing_deposit_liabilities"
+        how_temp["method"]="yearly_change"
+        how["add"].append(how_temp)
+
+        # Add new data - Interest expense deposit
+        how_temp={}
+        how_temp["col_nm"]="interest_expense_deposits"
+        how_temp["method"]="add_data"
+        how_temp["how"]=how_gen["interest_expense_deposits"]
+        how["add"].append(how_temp)
+
+
+        # Add interest rate deposit
+        how_temp={}
+        how_temp["col_nm"]="interest_rate_deposits"
+        how_temp["method"]="compute_ratio"
+        how_temp["how"]=dict(
+            numer_col_nm="interest_expense_deposits",
+            denom_col_nm="interest_bearing_deposit_liabilities",
+        )
+        how["add"].append(how_temp)
+
+        self.create_df(df_nm=_DF_NM,how=how)
+
+        self.dict_df[_DF_NM]=self.dict_df[_DF_NM].dropna()
+
+
+
 
     # Services for labels and descriptions
 
