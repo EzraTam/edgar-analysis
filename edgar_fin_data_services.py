@@ -136,6 +136,47 @@ class FinancialAnalyze:
                 self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
             )
 
+    def add_yearly_data_norm_new_col(
+        self, tag:str,col_nm:str,df_nm:str,how:dict
+    )-> None:
+        
+        # Initialize temporary df
+        _df_temp = extract_yearly_data_norm(self.data, tag=how["init"], col_nm=col_nm)
+
+        if "add" in how.keys():
+            if len(how["add"])>0:
+                for data_tag in how["add"]:
+                    _df_temp_add = extract_yearly_data_norm(self.data, tag=data_tag, col_nm=col_nm)
+                    _df_temp = (
+                        pd.concat([_df_temp, _df_temp_add], ignore_index=True)
+                        .drop_duplicates(ignore_index=True)
+                        .sort_values("year", ascending=False, ignore_index=True)
+                    )
+        
+        self.dict_df[df_nm] = pd.merge(
+                self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
+            )
+
+    
+    def generate_yearly_data_norm(self,col_nm:str, df_nm:str, how:dict)->None:
+        # dict format: "init" -> initialization of the column
+        # "add" -> add data
+
+        # Initialize Column
+        self.init_yearly_data_norm(
+            tag=how["init"],
+            col_nm=col_nm,
+            df_nm=df_nm
+            )
+
+        # Add Data to the column
+        for data_tag in how["add"]:
+            self.add_yearly_data_norm(
+                tag=data_tag,
+                col_nm=col_nm,
+                df_nm=df_nm
+                )
+
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
     ):
