@@ -69,8 +69,8 @@ def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
     """Extract yearly data from tag normalized to millions
 
     Args:
-        data (dict): Company data in Edgar form 
-        tag (str): Tag of financial 
+        data (dict): Company data in Edgar form
+        tag (str): Tag of financial
         col_nm (str): _description_
 
     Returns:
@@ -81,8 +81,7 @@ def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
 
 
 class FinancialAnalyze:
-    """Class for analysing financial data from Edgar dict
-    """
+    """Class for analysing financial data from Edgar dict"""
 
     def __init__(self, comp_nm: str, data: dict) -> None:
         """Initialization
@@ -107,10 +106,8 @@ class FinancialAnalyze:
             self.data, tag, col_nm, norm_mill=True
         )
 
-    def add_yearly_data_norm_to_col(
-        self, tag: str, col_nm: str, df_nm: str
-    ) -> None:
-        """ Add yearly data - normalized to millions
+    def add_yearly_data_norm_to_col(self, tag: str, col_nm: str, df_nm: str) -> None:
+        """Add yearly data - normalized to millions
         insert data to existing row.
 
         Args:
@@ -118,7 +115,7 @@ class FinancialAnalyze:
             col_nm (str): Column name of the added data
             df_nm (str): Name of the DF in the class dict
         """
-    
+
         _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
 
         self.dict_df[df_nm] = (
@@ -127,48 +124,56 @@ class FinancialAnalyze:
             .sort_values("year", ascending=False, ignore_index=True)
         )
 
-    def add_yearly_data_norm_new_col(
-        self,col_nm:str,df_nm:str,how:dict
-    )-> None:
-        
+    def add_yearly_data_norm_new_col(self, col_nm: str, df_nm: str, how: dict) -> None:
+        """Add yearly data (new column in a given DF)
+
+        Args:
+            col_nm (str): Name of the column
+            df_nm (str): Name of target DF
+            how (dict): Workflow - init and add data
+        """
+
         # Initialize temporary df
         _df_temp = extract_yearly_data_norm(self.data, tag=how["init"], col_nm=col_nm)
 
         if "add" in how.keys():
-            if len(how["add"])>0:
+            if len(how["add"]) > 0:
                 for data_tag in how["add"]:
-                    _df_temp_add = extract_yearly_data_norm(self.data, tag=data_tag, col_nm=col_nm)
+                    _df_temp_add = extract_yearly_data_norm(
+                        self.data, tag=data_tag, col_nm=col_nm
+                    )
                     _df_temp = (
                         pd.concat([_df_temp, _df_temp_add], ignore_index=True)
                         .drop_duplicates(ignore_index=True)
                         .sort_values("year", ascending=False, ignore_index=True)
                     )
-        
-        self.dict_df[df_nm] = pd.merge(
-                self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
-            )
 
-    
-    def generate_yearly_data_norm(self,col_nm:str, df_nm:str, how:dict)->None:
+        self.dict_df[df_nm] = pd.merge(
+            self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
+        )
+
+    def generate_yearly_data_norm(self, col_nm: str, df_nm: str, how: dict) -> None:
+        """Generate/Initialize data in a DF
+
+        Args:
+            col_nm (str): Name of the column
+            df_nm (str): Name of DF to be initiated
+            how (dict): Workflow - init and add data
+        """
+
         # dict format: "init" -> initialization of the column
         # "add" -> add data
 
         # Initialize Column
-        self.init_yearly_data_norm(
-            tag=how["init"],
-            col_nm=col_nm,
-            df_nm=df_nm
-            )
+        self.init_yearly_data_norm(tag=how["init"], col_nm=col_nm, df_nm=df_nm)
 
         # Add Data to the column
         if "add" in how.keys():
-            if len(how["add"])>0:
+            if len(how["add"]) > 0:
                 for data_tag in how["add"]:
                     self.add_yearly_data_norm_to_col(
-                        tag=data_tag,
-                        col_nm=col_nm,
-                        df_nm=df_nm
-                        )
+                        tag=data_tag, col_nm=col_nm, df_nm=df_nm
+                    )
 
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
@@ -234,42 +239,38 @@ class FinancialAnalyze:
             self.dict_df[df_nm][numer_col_nm] / self.dict_df[df_nm][denom_col_nm]
         ) * 100
 
-    def create_df(
-        self,df_nm:str,how:dict
-    )->None:
-       # dict "init": "col_nm", "how"
-       # dict "add": list with "col_nm", "method","how" 
+    def create_df(self, df_nm: str, how: dict) -> None:
+        """Workflow function
 
-       self.generate_yearly_data_norm(
-            col_nm=how["init"]["col_nm"],
-            df_nm=df_nm,
-            how=how["init"]["how"]
+        Args:
+            df_nm (str): Target DF (Initialization)
+            how (dict): Workflow specification
+        """
+
+        # dict "init": "col_nm", "how"
+        # dict "add": list with "col_nm", "method","how"
+
+        self.generate_yearly_data_norm(
+            col_nm=how["init"]["col_nm"], df_nm=df_nm, how=how["init"]["how"]
         )
 
-       if "add" in how.keys():
-        if len(how["add"])>0:
-            for step in how["add"]:
+        if "add" in how.keys():
+            if len(how["add"]) > 0:
+                for step in how["add"]:
 
-                if step["method"]=="yearly_change":
-                    self.compute_row_change(
-                        col_nm=step["col_nm"],
-                        df_nm=df_nm
+                    if step["method"] == "yearly_change":
+                        self.compute_row_change(col_nm=step["col_nm"], df_nm=df_nm)
+                    elif step["method"] == "add_data":
+                        self.add_yearly_data_norm_new_col(
+                            col_nm=step["col_nm"], df_nm=df_nm, how=step["how"]
                         )
-                elif step["method"]== "add_data":
-                    self.add_yearly_data_norm_new_col(
-                        col_nm=step["col_nm"],
-                        df_nm=df_nm,
-                        how=step["how"]
+                    elif step["method"] == "compute_ratio":
+                        self.compute_ratio(
+                            numer_col_nm=step["how"]["numer_col_nm"],
+                            denom_col_nm=step["how"]["denom_col_nm"],
+                            res_col_nm=step["col_nm"],
+                            df_nm=df_nm,
                         )
-                elif step["method"]== "compute_ratio":
-                    self.compute_ratio(
-                        numer_col_nm=step["how"]["numer_col_nm"],
-                        denom_col_nm=step["how"]["denom_col_nm"],
-                        res_col_nm=step["col_nm"],
-                        df_nm=df_nm
-                    )
-
-
 
     # Services for labels and descriptions
 
@@ -304,7 +305,7 @@ def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAn
     given the CIK
     """
     file_nm = "CIK" + cik
-    with open(os.path.join(path,f"{file_nm}.json")) as file:
+    with open(os.path.join(path, f"{file_nm}.json"),encoding='utf-8') as file:
         # Define service
         return FinancialAnalyze(comp_nm=comp_nm, data=json.load(file))
 
@@ -362,6 +363,6 @@ class InterCompaniesAnalyze:
         sns.set_theme(style="whitegrid")
 
         sns.set(rc={"figure.figsize": (width, height)})
-        ax = sns.barplot(data=df_analyze, x="year", y=key, hue="company")
+        ax_plot = sns.barplot(data=df_analyze, x="year", y=key, hue="company")
 
-        ax.set(xlabel=xlabel, ylabel=ylabel)
+        ax_plot.set(xlabel=xlabel, ylabel=ylabel)
