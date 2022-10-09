@@ -107,37 +107,28 @@ class FinancialAnalyze:
             self.data, tag, col_nm, norm_mill=True
         )
 
-    def add_yearly_data_norm(
-        self, tag: str, col_nm: str, df_nm: str, add_row=True
+    def add_yearly_data_norm_to_col(
+        self, tag: str, col_nm: str, df_nm: str
     ) -> None:
         """ Add yearly data - normalized to millions
-        By default insert data to existing row.
-        Set add_row to False in order to add new column
+        insert data to existing row.
 
         Args:
             tag (str): GAAP taxonomy tag of interest
             col_nm (str): Column name of the added data
             df_nm (str): Name of the DF in the class dict
-            add_row (bool, optional): _description_. Defaults to True.
         """
-        if add_row:
-            _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
+    
+        _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
 
-            self.dict_df[df_nm] = (
-                pd.concat([self.dict_df[df_nm], _df_temp], ignore_index=True)
-                .drop_duplicates(ignore_index=True)
-                .sort_values("year", ascending=False, ignore_index=True)
-            )
-
-        else:
-            _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
-
-            self.dict_df[df_nm] = pd.merge(
-                self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
-            )
+        self.dict_df[df_nm] = (
+            pd.concat([self.dict_df[df_nm], _df_temp], ignore_index=True)
+            .drop_duplicates(ignore_index=True)
+            .sort_values("year", ascending=False, ignore_index=True)
+        )
 
     def add_yearly_data_norm_new_col(
-        self, tag:str,col_nm:str,df_nm:str,how:dict
+        self,col_nm:str,df_nm:str,how:dict
     )-> None:
         
         # Initialize temporary df
@@ -170,12 +161,14 @@ class FinancialAnalyze:
             )
 
         # Add Data to the column
-        for data_tag in how["add"]:
-            self.add_yearly_data_norm(
-                tag=data_tag,
-                col_nm=col_nm,
-                df_nm=df_nm
-                )
+        if "add" in how.keys():
+            if len(how["add"])>0:
+                for data_tag in how["add"]:
+                    self.add_yearly_data_norm_to_col(
+                        tag=data_tag,
+                        col_nm=col_nm,
+                        df_nm=df_nm
+                        )
 
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
@@ -240,6 +233,43 @@ class FinancialAnalyze:
         self.dict_df[df_nm][res_col_nm] = (
             self.dict_df[df_nm][numer_col_nm] / self.dict_df[df_nm][denom_col_nm]
         ) * 100
+
+    def create_df(
+        self,df_nm:str,how:dict
+    )->None:
+       # dict "init": "col_nm", "how"
+       # dict "add": list with "col_nm", "method","how" 
+
+       self.generate_yearly_data_norm(
+            col_nm=how["init"]["col_nm"],
+            df_nm=df_nm,
+            how=how["init"]["how"]
+        )
+
+       if "add" in how.keys():
+        if len(how["add"])>0:
+            for step in how["add"]:
+
+                if step["method"]=="yearly_change":
+                    self.compute_row_change(
+                        col_nm=step["col_nm"],
+                        df_nm=df_nm
+                        )
+                elif step["method"]== "add_data":
+                    self.add_yearly_data_norm_new_col(
+                        col_nm=step["col_nm"],
+                        df_nm=df_nm,
+                        how=step["how"]
+                        )
+                elif step["method"]== "compute_ratio":
+                    self.compute_ratio(
+                        numer_col_nm=step["how"]["numer_col_nm"],
+                        denom_col_nm=step["how"]["denom_col_nm"],
+                        res_col_nm=step["col_nm"],
+                        df_nm=df_nm
+                    )
+
+
 
     # Services for labels and descriptions
 
