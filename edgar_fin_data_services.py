@@ -80,6 +80,10 @@ def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
     return extract_yearly_data(data, tag, col_nm, norm_mill=True)
 
 
+# Config file
+with open('df_config.json', 'r') as f:
+    config = json.load(f)
+
 class FinancialAnalyze:
     """Class for analysing financial data from Edgar dict"""
 
@@ -174,6 +178,10 @@ class FinancialAnalyze:
                     self.add_yearly_data_norm_to_col(
                         tag=data_tag, col_nm=col_nm, df_nm=df_nm
                     )
+
+        if "drop" in how.keys():
+            if len(how["drop"])>0:
+                self.dict_df[df_nm]=self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
 
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
@@ -275,52 +283,36 @@ class FinancialAnalyze:
                         )
 
     # Third-Order Methods
-    def generate_deposit_df(self,how_gen:dict):
-        # DF to generate
-        _DF_NM="ib_deposits"
+    # TODO: Abstract generate_deposit_df by config in df_config
 
+    def generate_df(self,df_nm:str,how_gen:dict):
         how={}
-        
-        # Initialization by generating data for the column "interest_bearing_deposit_liabilities"
-        how["init"]={}
-        
-        # Data dict for the column "interest_bearing_deposit_liabilities"
-        how["init"]["col_nm"]="interest_bearing_deposit_liabilities"
-        how["init"]["how"]=how_gen["interest_bearing_deposit_liabilities"]
 
-        # Additional Columns
+        df_config=config[df_nm]
+
+        how["init"]={}
+        how["init"]["col_nm"]=df_config["init"]["col_nm"]
+        how["init"]["how"]=how_gen[df_config["init"]["col_nm"]]
 
         how["add"]=[]
 
-        # Compute yearly change - ib_deposit
-        how_temp={}
-        how_temp["col_nm"]="interest_bearing_deposit_liabilities"
-        how_temp["method"]="yearly_change"
-        how["add"].append(how_temp)
+        for step in df_config["add"]:
+            how_temp={}
+            how_temp["method"]=step["method"]
+            how_temp["col_nm"]=step["col_nm"]
+            
+            if step["method"]=="yearly_change":
+                pass
+            elif step["method"]=="add_data":
+                how_temp["how"]=how_gen[step["col_nm"]]
+            elif step["method"]=="compute_ratio":
+                how_temp["how"]=step["how"]
+            
+            how["add"].append(how_temp)
 
-        # Add new data - Interest expense deposit
-        how_temp={}
-        how_temp["col_nm"]="interest_expense_deposits"
-        how_temp["method"]="add_data"
-        how_temp["how"]=how_gen["interest_expense_deposits"]
-        how["add"].append(how_temp)
+        self.create_df(df_nm=df_nm,how=how)
 
-
-        # Add interest rate deposit
-        how_temp={}
-        how_temp["col_nm"]="interest_rate_deposits"
-        how_temp["method"]="compute_ratio"
-        how_temp["how"]=dict(
-            numer_col_nm="interest_expense_deposits",
-            denom_col_nm="interest_bearing_deposit_liabilities",
-        )
-        how["add"].append(how_temp)
-
-        self.create_df(df_nm=_DF_NM,how=how)
-
-        self.dict_df[_DF_NM]=self.dict_df[_DF_NM].dropna()
-
-
+        self.dict_df[df_nm]=self.dict_df[df_nm].dropna()
 
 
     # Services for labels and descriptions
