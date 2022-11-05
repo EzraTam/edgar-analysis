@@ -14,6 +14,8 @@ import seaborn as sns
 
 import pandas as pd
 
+from config import df_config
+
 
 def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
     """Transform financial data to pandas
@@ -78,11 +80,6 @@ def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
     """
 
     return extract_yearly_data(data, tag, col_nm, norm_mill=True)
-
-
-# Config file
-with open('df_config.json', 'r') as f:
-    config = json.load(f)
 
 class FinancialAnalyze:
     """Class for analysing financial data from Edgar dict"""
@@ -288,15 +285,15 @@ class FinancialAnalyze:
     def generate_df(self,df_nm:str,how_gen:dict):
         how={}
 
-        df_config=config[df_nm]
+        df_config_spec=df_config[df_nm]
 
         how["init"]={}
-        how["init"]["col_nm"]=df_config["init"]["col_nm"]
-        how["init"]["how"]=how_gen[df_config["init"]["col_nm"]]
+        how["init"]["col_nm"]= df_config_spec["init"]["col_nm"]
+        how["init"]["how"]=how_gen[df_config_spec["init"]["col_nm"]]
 
         how["add"]=[]
 
-        for step in df_config["add"]:
+        for step in  df_config_spec["add"]:
             how_temp={}
             how_temp["method"]=step["method"]
             how_temp["col_nm"]=step["col_nm"]
