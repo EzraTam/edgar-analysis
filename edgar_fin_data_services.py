@@ -8,7 +8,7 @@ import json
 
 from typing import List
 
-from functools import reduce, partial
+from functools import reduce
 
 import seaborn as sns
 
@@ -96,6 +96,36 @@ class FinancialAnalyze:
         self.data = data
         self.dict_df = {}
 
+    def extract_yearly_data(
+        self, tag: str, col_nm: str, norm_mill: bool
+    ) -> pd.DataFrame:
+        """Extract yearly data for a given tag
+
+        Args:
+            tag (str): Tag of the values of interests
+            col_nm (str): Name of the column of the resulting data
+            norm_mill (bool): Flag for normalization values in millions
+
+        Returns:
+            pd.DataFrame: Resulting dataframe
+        """
+        return extract_yearly_data(
+            data=self.data, tag=tag, col_nm=col_nm, norm_mill=norm_mill
+        )
+
+    def extract_yearly_data_norm(self, tag: str, col_nm: str) -> pd.DataFrame:
+        """Extract yearly data from tag normalized to millions
+
+        Args:
+            tag (str): Tag of financial
+            col_nm (str): _description_
+
+        Returns:
+            pd.DataFrame: _description_
+        """
+
+        return self.extract_yearly_data(tag=tag, col_nm=col_nm, norm_mill=True)
+
     def init_yearly_data_norm(self, tag: str, col_nm: str, df_nm: str) -> None:
         """Initialize Table from dict with a given tag
 
@@ -104,9 +134,7 @@ class FinancialAnalyze:
             col_nm (str): Column name of the added data
             df_nm (str): Name of the DF in the class dict
         """
-        self.dict_df[df_nm] = extract_yearly_data(
-            self.data, tag, col_nm, norm_mill=True
-        )
+        self.dict_df[df_nm] = self.extract_yearly_data(tag, col_nm, norm_mill=True)
 
     def add_yearly_data_norm_to_col(
         self, tags: List[str], col_nm: str, df_nm: str
@@ -119,9 +147,13 @@ class FinancialAnalyze:
             col_nm (str): Column name of the added data
             df_nm (str): Name of the DF in the class dict
         """
-        _dfs_temp = map(
-            partial(extract_yearly_data_norm, data=self.data, col_nm=col_nm), tags
-        )
+
+        # function col fixed
+
+        def func_fixed(tag):
+            return self.extract_yearly_data_norm(col_nm=col_nm, tag=tag)
+
+        _dfs_temp = map(func_fixed, tags)
 
         _dfs_to_concat = [self.dict_df[df_nm], *_dfs_temp]
 
@@ -140,8 +172,12 @@ class FinancialAnalyze:
             df_nm (str): Name of target DF
             how (dict): Workflow - init and add data
         """
+
+        def func_fixed(tag):
+            return self.extract_yearly_data_norm(tag=tag, col_nm=col_nm)
+
         _df_temp = (
-            extract_yearly_data_norm(data=self.data, tag=how["init"], col_nm=col_nm)
+            self.extract_yearly_data_norm(tag=how["init"], col_nm=col_nm)
             if not how.get("add")
             else reduce(
                 lambda df_old, df_add: pd.concat([df_old, df_add], ignore_index=True)
@@ -150,9 +186,7 @@ class FinancialAnalyze:
                 [
                     _df_temp,
                     *map(
-                        partial(
-                            extract_yearly_data_norm, data=self.data, col_nm=col_nm
-                        ),
+                        func_fixed,
                         how["add"],
                     ),
                 ],
@@ -294,7 +328,7 @@ class FinancialAnalyze:
 
     # Third-Order Methods
     # TODO: Abstract generate_deposit_df by config in df_config
-    
+
     # TODO Choose better naming
     @staticmethod
     def _helper_generate_df(step: dict, how_gen: dict):
