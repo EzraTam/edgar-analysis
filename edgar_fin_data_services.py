@@ -8,7 +8,7 @@ import json
 
 from typing import List
 
-from functools import reduce
+from functools import reduce, partial
 
 import seaborn as sns
 
@@ -138,17 +138,20 @@ class FinancialAnalyze:
         # Initialize temporary df
         _df_temp = extract_yearly_data_norm(self.data, tag=how["init"], col_nm=col_nm)
 
-        if "add" in how.keys():
-            if len(how["add"]) > 0:
-                for data_tag in how["add"]:
-                    _df_temp_add = extract_yearly_data_norm(
-                        self.data, tag=data_tag, col_nm=col_nm
-                    )
-                    _df_temp = (
-                        pd.concat([_df_temp, _df_temp_add], ignore_index=True)
-                        .drop_duplicates(ignore_index=True)
-                        .sort_values("year", ascending=False, ignore_index=True)
-                    )
+        if "add" in how.keys() and how["add"]:
+
+            extract_fixed = partial(
+                extract_yearly_data_norm, data=self.data, col_nm=col_nm
+            )
+
+            _dfs_temp_add = [_df_temp, *map(extract_fixed, how["add"])]
+
+            _df_temp = reduce(
+                lambda df_old, df_add: pd.concat([df_old, df_add], ignore_index=True)
+                .drop_duplicates(ignore_index=True)
+                .sort_values("year", ascending=False, ignore_index=True),
+                _dfs_temp_add,
+            )
 
         self.dict_df[df_nm] = pd.merge(
             self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
