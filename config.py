@@ -55,3 +55,18 @@ df_config={
             ]
     }
 }
+
+step_config={
+    "yearly_change":{
+        "method":"compute_row_change",
+        "args":["col_nm","df_nm"]
+    },
+    "add_data":{
+        "method":"add_yearly_data_norm_new_col",
+        "args":["col_nm","how","df_nm"]
+    },
+    "compute_ratio":{
+        "method":"compute_ratio",
+        "args":["numer_col_nm","denom_col_nm","res_col_nm","df_nm"]
+    }
+}

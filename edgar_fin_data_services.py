@@ -14,7 +14,7 @@ import seaborn as sns
 
 import pandas as pd
 
-from config import df_config
+from config import df_config, step_config
 
 
 def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
@@ -80,6 +80,7 @@ def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
     """
 
     return extract_yearly_data(data, tag, col_nm, norm_mill=True)
+
 
 class FinancialAnalyze:
     """Class for analysing financial data from Edgar dict"""
@@ -177,8 +178,10 @@ class FinancialAnalyze:
                     )
 
         if "drop" in how.keys():
-            if len(how["drop"])>0:
-                self.dict_df[df_nm]=self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
+            if len(how["drop"]) > 0:
+                self.dict_df[df_nm] = (
+                    self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
+                )
 
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
@@ -261,56 +264,59 @@ class FinancialAnalyze:
             col_nm=how["init"]["col_nm"], df_nm=df_nm, how=how["init"]["how"]
         )
 
-        if "add" in how.keys():
-            if len(how["add"]) > 0:
-                for step in how["add"]:
+        if "add" not in how.keys() or not how["add"]:
+            return
 
-                    if step["method"] == "yearly_change":
-                        self.compute_row_change(col_nm=step["col_nm"], df_nm=df_nm)
-                    elif step["method"] == "add_data":
-                        self.add_yearly_data_norm_new_col(
-                            col_nm=step["col_nm"], df_nm=df_nm, how=step["how"]
-                        )
-                    elif step["method"] == "compute_ratio":
-                        self.compute_ratio(
-                            numer_col_nm=step["how"]["numer_col_nm"],
-                            denom_col_nm=step["how"]["denom_col_nm"],
-                            res_col_nm=step["col_nm"],
-                            df_nm=df_nm,
-                        )
+        for step in how["add"]:
+            if step["method"] == "yearly_change":
+                arguments = {
+                    "col_nm": step["col_nm"],
+                }
+            elif step["method"] == "add_data":
+                arguments = {
+                    "col_nm": step["col_nm"],
+                    "how": step["how"],
+                }
+            elif step["method"] == "compute_ratio":
+                arguments = {
+                    "numer_col_nm": step["how"]["numer_col_nm"],
+                    "denom_col_nm": step["how"]["denom_col_nm"],
+                    "res_col_nm": step["col_nm"],
+                }
+            arguments = {**arguments, "df_nm": df_nm}
+            getattr(self, step_config[step["method"]]["method"])(**arguments)
 
     # Third-Order Methods
     # TODO: Abstract generate_deposit_df by config in df_config
 
-    def generate_df(self,df_nm:str,how_gen:dict):
-        how={}
+    def generate_df(self, df_nm: str, how_gen: dict):
+        how = {}
 
-        df_config_spec=df_config[df_nm]
+        df_config_spec = df_config[df_nm]
 
-        how["init"]={}
-        how["init"]["col_nm"]= df_config_spec["init"]["col_nm"]
-        how["init"]["how"]=how_gen[df_config_spec["init"]["col_nm"]]
+        how["init"] = {}
+        how["init"]["col_nm"] = df_config_spec["init"]["col_nm"]
+        how["init"]["how"] = how_gen[df_config_spec["init"]["col_nm"]]
 
-        how["add"]=[]
+        how["add"] = []
 
-        for step in  df_config_spec["add"]:
-            how_temp={}
-            how_temp["method"]=step["method"]
-            how_temp["col_nm"]=step["col_nm"]
-            
-            if step["method"]=="yearly_change":
+        for step in df_config_spec["add"]:
+            how_temp = {}
+            how_temp["method"] = step["method"]
+            how_temp["col_nm"] = step["col_nm"]
+
+            if step["method"] == "yearly_change":
                 pass
-            elif step["method"]=="add_data":
-                how_temp["how"]=how_gen[step["col_nm"]]
-            elif step["method"]=="compute_ratio":
-                how_temp["how"]=step["how"]
-            
+            elif step["method"] == "add_data":
+                how_temp["how"] = how_gen[step["col_nm"]]
+            elif step["method"] == "compute_ratio":
+                how_temp["how"] = step["how"]
+
             how["add"].append(how_temp)
 
-        self.create_df(df_nm=df_nm,how=how)
+        self.create_df(df_nm=df_nm, how=how)
 
-        self.dict_df[df_nm]=self.dict_df[df_nm].dropna()
-
+        self.dict_df[df_nm] = self.dict_df[df_nm].dropna()
 
     # Services for labels and descriptions
 
@@ -345,7 +351,7 @@ def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAn
     given the CIK
     """
     file_nm = "CIK" + cik
-    with open(os.path.join(path, f"{file_nm}.json"),encoding='utf-8') as file:
+    with open(os.path.join(path, f"{file_nm}.json"), encoding="utf-8") as file:
         # Define service
         return FinancialAnalyze(comp_nm=comp_nm, data=json.load(file))
 
