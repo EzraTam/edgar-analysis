@@ -294,31 +294,35 @@ class FinancialAnalyze:
 
     # Third-Order Methods
     # TODO: Abstract generate_deposit_df by config in df_config
+    
+    # TODO Choose better naming
+    @staticmethod
+    def _helper_generate_df(step: dict, how_gen: dict):
+        return {
+            "method": step["method"],
+            "col_nm": step["col_nm"],
+            "how": {
+                "yearly_change": None,
+                "add_data": how_gen.get(step.get("col_nm")),
+                "compute_ratio": step.get("how"),
+            }[step["method"]],
+        }
 
     def generate_df(self, df_nm: str, how_gen: dict):
         how = {}
 
         df_config_spec = df_config[df_nm]
 
-        how["init"] = {}
-        how["init"]["col_nm"] = df_config_spec["init"]["col_nm"]
-        how["init"]["how"] = how_gen[df_config_spec["init"]["col_nm"]]
-
-        how["add"] = []
-
-        for step in df_config_spec["add"]:
-            how_temp = {}
-            how_temp["method"] = step["method"]
-            how_temp["col_nm"] = step["col_nm"]
-
-            if step["method"] == "yearly_change":
-                pass
-            elif step["method"] == "add_data":
-                how_temp["how"] = how_gen[step["col_nm"]]
-            elif step["method"] == "compute_ratio":
-                how_temp["how"] = step["how"]
-
-            how["add"].append(how_temp)
+        how = {
+            "init": {
+                "col_nm": df_config_spec["init"]["col_nm"],
+                "how": how_gen[df_config_spec["init"]["col_nm"]],
+            },
+            "add": [
+                self._helper_generate_df(step=step, how_gen=how_gen)
+                for step in df_config_spec["add"]
+            ],
+        }
 
         self.create_df(df_nm=df_nm, how=how)
 
