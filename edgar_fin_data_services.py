@@ -67,7 +67,7 @@ def extract_yearly_data(
     return df_res
 
 
-def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
+def extract_yearly_data_norm(tag: str, col_nm: str, data: dict) -> pd.DataFrame:
     """Extract yearly data from tag normalized to millions
 
     Args:
@@ -108,7 +108,9 @@ class FinancialAnalyze:
             self.data, tag, col_nm, norm_mill=True
         )
 
-    def add_yearly_data_norm_to_col(self, tag: str, col_nm: str, df_nm: str) -> None:
+    def add_yearly_data_norm_to_col(
+        self, tags: List[str], col_nm: str, df_nm: str
+    ) -> None:
         """Add yearly data - normalized to millions
         insert data to existing row.
 
@@ -117,13 +119,17 @@ class FinancialAnalyze:
             col_nm (str): Column name of the added data
             df_nm (str): Name of the DF in the class dict
         """
+        _dfs_temp = map(
+            partial(extract_yearly_data_norm, data=self.data, col_nm=col_nm), tags
+        )
 
-        _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
+        _dfs_to_concat = [self.dict_df[df_nm], *_dfs_temp]
 
-        self.dict_df[df_nm] = (
-            pd.concat([self.dict_df[df_nm], _df_temp], ignore_index=True)
+        self.dict_df[df_nm] = reduce(
+            lambda df_old, df_to_add: pd.concat([df_old, df_to_add], ignore_index=True)
             .drop_duplicates(ignore_index=True)
-            .sort_values("year", ascending=False, ignore_index=True)
+            .sort_values("year", ascending=False, ignore_index=True),
+            _dfs_to_concat,
         )
 
     def add_yearly_data_norm_new_col(self, col_nm: str, df_nm: str, how: dict) -> None:
@@ -134,24 +140,24 @@ class FinancialAnalyze:
             df_nm (str): Name of target DF
             how (dict): Workflow - init and add data
         """
-
-        # Initialize temporary df
-        _df_temp = extract_yearly_data_norm(self.data, tag=how["init"], col_nm=col_nm)
-
-        if "add" in how.keys() and how["add"]:
-
-            extract_fixed = partial(
-                extract_yearly_data_norm, data=self.data, col_nm=col_nm
-            )
-
-            _dfs_temp_add = [_df_temp, *map(extract_fixed, how["add"])]
-
-            _df_temp = reduce(
+        _df_temp = (
+            extract_yearly_data_norm(data=self.data, tag=how["init"], col_nm=col_nm)
+            if not how.get("add")
+            else reduce(
                 lambda df_old, df_add: pd.concat([df_old, df_add], ignore_index=True)
                 .drop_duplicates(ignore_index=True)
                 .sort_values("year", ascending=False, ignore_index=True),
-                _dfs_temp_add,
+                [
+                    _df_temp,
+                    *map(
+                        partial(
+                            extract_yearly_data_norm, data=self.data, col_nm=col_nm
+                        ),
+                        how["add"],
+                    ),
+                ],
             )
+        )
 
         self.dict_df[df_nm] = pd.merge(
             self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
@@ -173,18 +179,15 @@ class FinancialAnalyze:
         self.init_yearly_data_norm(tag=how["init"], col_nm=col_nm, df_nm=df_nm)
 
         # Add Data to the column
-        if "add" in how.keys():
-            if len(how["add"]) > 0:
-                for data_tag in how["add"]:
-                    self.add_yearly_data_norm_to_col(
-                        tag=data_tag, col_nm=col_nm, df_nm=df_nm
-                    )
+        if how.get("add"):
+            self.add_yearly_data_norm_to_col(
+                tags=how["add"], col_nm=col_nm, df_nm=df_nm
+            )
 
-        if "drop" in how.keys():
-            if len(how["drop"]) > 0:
-                self.dict_df[df_nm] = (
-                    self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
-                )
+        if how.get("drop"):
+            self.dict_df[df_nm] = (
+                self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
+            )
 
     def add_data_from_other_col(
         self, source_df: str, source_col: str, target_df: str, col_nm=None
@@ -267,7 +270,7 @@ class FinancialAnalyze:
             col_nm=how["init"]["col_nm"], df_nm=df_nm, how=how["init"]["how"]
         )
 
-        if "add" not in how.keys() or not how["add"]:
+        if not how.get("add"):
             return
 
         for step in how["add"]:
