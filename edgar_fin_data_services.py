@@ -183,13 +183,7 @@ class FinancialAnalyze:
                 lambda df_old, df_add: pd.concat([df_old, df_add], ignore_index=True)
                 .drop_duplicates(ignore_index=True)
                 .sort_values("year", ascending=False, ignore_index=True),
-                [
-                    _df_temp,
-                    *map(
-                        func_fixed,
-                        how["add"],
-                    ),
-                ],
+                [_df_temp, *map(func_fixed, how["add"])],
             )
         )
 
@@ -234,10 +228,9 @@ class FinancialAnalyze:
             target_df (str): df where data in source_col should be inserted
             col_nm (_type_, optional): Name of the resulting column. Defaults to None.
         """
-        if col_nm is None:
-            col_nm = source_col
+        col_nm = source_col if not col_nm else col_nm
 
-        _df_temp = self.dict_df[source_df][["year", source_col]]
+        _df_temp = self.dict_df[source_df][["year", source_col]].rename(columns={source_col: col_nm})
         self.dict_df[target_df] = pd.merge(
             self.dict_df[target_df], _df_temp, on=["year"], how="outer"
         )
@@ -376,17 +369,12 @@ class FinancialAnalyze:
         Usage e.g. find_in_dict_entry(key='description',query='loan')
         -> Find position for which the word loans occurs in the description
         """
-        li_positions = []
-
-        for position in self.data["facts"]["us-gaap"].keys():
-            if self.data["facts"]["us-gaap"][position][key]:
-                if (
-                    self.data["facts"]["us-gaap"][position][key].lower().find(query)
-                    != -1
-                ):
-                    li_positions.append(position)
-
-        return li_positions
+        return [
+            position
+            for position in self.data["facts"]["us-gaap"].keys()
+            if self.data["facts"]["us-gaap"][position][key]
+            and self.data["facts"]["us-gaap"][position][key].lower().find(query) != -1
+        ]
 
 
 def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAnalyze:
@@ -426,8 +414,7 @@ class InterCompaniesAnalyze:
 
             if df_name in comp_serv.dict_df.keys():
                 df_comp = comp_serv.dict_df[df_name]
-                li_col_to_drop = [
-                    col
+                li_col_to_drop = [col
                     for col in list(df_comp.columns)
                     if col not in ["year", quantity]
                 ]
