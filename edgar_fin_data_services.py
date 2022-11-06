@@ -6,7 +6,7 @@ import os
 
 import json
 
-from typing import List
+from typing import List, Optional
 
 from functools import reduce
 
@@ -218,7 +218,7 @@ class FinancialAnalyze:
             )
 
     def add_data_from_other_col(
-        self, source_df: str, source_col: str, target_df: str, col_nm=None
+        self, source_df: str, source_col: str, target_df: str, col_nm:Optional[str]=None
     ):
         """Function to add data to a given df from other df
 
@@ -282,17 +282,41 @@ class FinancialAnalyze:
 
     # Second Order Methods
 
+    # TODO Choose better naming
+    @staticmethod
+    def _helper_create_df(step: dict)->dict:
+        """From a step dict which contains
+        the corresponding method specification
+        for the step and the corresponding meta
+        data
+        Returns:
+            dict: column(s) specification
+        """
+        if step["method"] == "yearly_change":
+            return {
+                "col_nm": step["col_nm"],
+            }
+        if step["method"] == "add_data":
+            return {
+                "col_nm": step["col_nm"],
+                "how": step["how"],
+            }
+        if step["method"] == "compute_ratio":
+            return {
+                "numer_col_nm": step["how"]["numer_col_nm"],
+                "denom_col_nm": step["how"]["denom_col_nm"],
+                "res_col_nm": step["col_nm"],
+            }
+
     def create_df(self, df_nm: str, how: dict) -> None:
         """Workflow function
 
         Args:
             df_nm (str): Target DF (Initialization)
             how (dict): Workflow specification
+                dict "init": "col_nm", "how"
+                dict "add": list with "col_nm", "method","how"
         """
-
-        # dict "init": "col_nm", "how"
-        # dict "add": list with "col_nm", "method","how"
-
         self.generate_yearly_data_norm(
             col_nm=how["init"]["col_nm"], df_nm=df_nm, how=how["init"]["how"]
         )
@@ -301,23 +325,7 @@ class FinancialAnalyze:
             return
 
         for step in how["add"]:
-            if step["method"] == "yearly_change":
-                arguments = {
-                    "col_nm": step["col_nm"],
-                }
-            elif step["method"] == "add_data":
-                arguments = {
-                    "col_nm": step["col_nm"],
-                    "how": step["how"],
-                }
-            elif step["method"] == "compute_ratio":
-                arguments = {
-                    "numer_col_nm": step["how"]["numer_col_nm"],
-                    "denom_col_nm": step["how"]["denom_col_nm"],
-                    "res_col_nm": step["col_nm"],
-                }
-            arguments = {**arguments, "df_nm": df_nm}
-            getattr(self, step_config[step["method"]]["method"])(**arguments)
+            getattr(self, step_config[step["method"]]["method"])(**self._helper_create_df(step),df_nm=df_nm)
 
     # Third-Order Methods
     # TODO: Abstract generate_deposit_df by config in df_config
