@@ -6,13 +6,15 @@ import os
 
 import json
 
-from typing import List
+from typing import List, Optional
 
 from functools import reduce
 
 import seaborn as sns
 
 import pandas as pd
+
+from config import df_config, step_config
 
 
 def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
@@ -65,7 +67,7 @@ def extract_yearly_data(
     return df_res
 
 
-def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
+def extract_yearly_data_norm(tag: str, col_nm: str, data: dict) -> pd.DataFrame:
     """Extract yearly data from tag normalized to millions
 
     Args:
@@ -80,14 +82,12 @@ def extract_yearly_data_norm(data: dict, tag: str, col_nm: str) -> pd.DataFrame:
     return extract_yearly_data(data, tag, col_nm, norm_mill=True)
 
 
-# Config file
-with open('df_config.json', 'r') as f:
-    config = json.load(f)
-
 class FinancialAnalyze:
     """Class for analysing financial data from Edgar dict"""
 
-    def __init__(self, comp_nm: str, data: dict) -> None:
+    def __init__(
+        self, comp_nm: str, data: dict, dict_df: Optional[pd.DataFrame] = None
+    ) -> None:
         """Initialization
 
         Args:
@@ -96,7 +96,37 @@ class FinancialAnalyze:
         """
         self.comp_nm = comp_nm
         self.data = data
-        self.dict_df = {}
+        self.dict_df = dict_df if dict_df else {}
+
+    def extract_yearly_data(
+        self, tag: str, col_nm: str, norm_mill: bool
+    ) -> pd.DataFrame:
+        """Extract yearly data for a given tag
+
+        Args:
+            tag (str): Tag of the values of interests
+            col_nm (str): Name of the column of the resulting data
+            norm_mill (bool): Flag for normalization values in millions
+
+        Returns:
+            pd.DataFrame: Resulting dataframe
+        """
+        return extract_yearly_data(
+            data=self.data, tag=tag, col_nm=col_nm, norm_mill=norm_mill
+        )
+
+    def extract_yearly_data_norm(self, tag: str, col_nm: str) -> pd.DataFrame:
+        """Extract yearly data from tag normalized to millions
+
+        Args:
+            tag (str): Tag of financial
+            col_nm (str): _description_
+
+        Returns:
+            pd.DataFrame: _description_
+        """
+
+        return self.extract_yearly_data(tag=tag, col_nm=col_nm, norm_mill=True)
 
     def init_yearly_data_norm(self, tag: str, col_nm: str, df_nm: str) -> None:
         """Initialize Table from dict with a given tag
@@ -106,11 +136,11 @@ class FinancialAnalyze:
             col_nm (str): Column name of the added data
             df_nm (str): Name of the DF in the class dict
         """
-        self.dict_df[df_nm] = extract_yearly_data(
-            self.data, tag, col_nm, norm_mill=True
-        )
+        self.dict_df[df_nm] = self.extract_yearly_data(tag, col_nm, norm_mill=True)
 
-    def add_yearly_data_norm_to_col(self, tag: str, col_nm: str, df_nm: str) -> None:
+    def add_yearly_data_norm_to_col(
+        self, tags: List[str], col_nm: str, df_nm: str
+    ) -> None:
         """Add yearly data - normalized to millions
         insert data to existing row.
 
@@ -120,12 +150,20 @@ class FinancialAnalyze:
             df_nm (str): Name of the DF in the class dict
         """
 
-        _df_temp = extract_yearly_data_norm(self.data, tag=tag, col_nm=col_nm)
+        # function col fixed
 
-        self.dict_df[df_nm] = (
-            pd.concat([self.dict_df[df_nm], _df_temp], ignore_index=True)
+        def func_fixed(tag):
+            return self.extract_yearly_data_norm(col_nm=col_nm, tag=tag)
+
+        _dfs_temp = map(func_fixed, tags)
+
+        _dfs_to_concat = [self.dict_df[df_nm], *_dfs_temp]
+
+        self.dict_df[df_nm] = reduce(
+            lambda df_old, df_to_add: pd.concat([df_old, df_to_add], ignore_index=True)
             .drop_duplicates(ignore_index=True)
-            .sort_values("year", ascending=False, ignore_index=True)
+            .sort_values("year", ascending=False, ignore_index=True),
+            _dfs_to_concat,
         )
 
     def add_yearly_data_norm_new_col(self, col_nm: str, df_nm: str, how: dict) -> None:
@@ -137,20 +175,19 @@ class FinancialAnalyze:
             how (dict): Workflow - init and add data
         """
 
-        # Initialize temporary df
-        _df_temp = extract_yearly_data_norm(self.data, tag=how["init"], col_nm=col_nm)
+        def func_fixed(tag):
+            return self.extract_yearly_data_norm(tag=tag, col_nm=col_nm)
 
-        if "add" in how.keys():
-            if len(how["add"]) > 0:
-                for data_tag in how["add"]:
-                    _df_temp_add = extract_yearly_data_norm(
-                        self.data, tag=data_tag, col_nm=col_nm
-                    )
-                    _df_temp = (
-                        pd.concat([_df_temp, _df_temp_add], ignore_index=True)
-                        .drop_duplicates(ignore_index=True)
-                        .sort_values("year", ascending=False, ignore_index=True)
-                    )
+        _df_temp = (
+            self.extract_yearly_data_norm(tag=how["init"], col_nm=col_nm)
+            if not how.get("add")
+            else reduce(
+                lambda df_old, df_add: pd.concat([df_old, df_add], ignore_index=True)
+                .drop_duplicates(ignore_index=True)
+                .sort_values("year", ascending=False, ignore_index=True),
+                map(func_fixed, how["add"]),
+            )
+        )
 
         self.dict_df[df_nm] = pd.merge(
             self.dict_df[df_nm], _df_temp, on=["year"], how="outer"
@@ -172,19 +209,22 @@ class FinancialAnalyze:
         self.init_yearly_data_norm(tag=how["init"], col_nm=col_nm, df_nm=df_nm)
 
         # Add Data to the column
-        if "add" in how.keys():
-            if len(how["add"]) > 0:
-                for data_tag in how["add"]:
-                    self.add_yearly_data_norm_to_col(
-                        tag=data_tag, col_nm=col_nm, df_nm=df_nm
-                    )
+        if how.get("add"):
+            self.add_yearly_data_norm_to_col(
+                tags=how["add"], col_nm=col_nm, df_nm=df_nm
+            )
 
-        if "drop" in how.keys():
-            if len(how["drop"])>0:
-                self.dict_df[df_nm]=self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
+        if how.get("drop"):
+            self.dict_df[df_nm] = (
+                self.dict_df[df_nm].drop(how["drop"]).reset_index(drop=True)
+            )
 
     def add_data_from_other_col(
-        self, source_df: str, source_col: str, target_df: str, col_nm=None
+        self,
+        source_df: str,
+        source_col: str,
+        target_df: str,
+        col_nm: Optional[str] = None,
     ):
         """Function to add data to a given df from other df
 
@@ -194,10 +234,11 @@ class FinancialAnalyze:
             target_df (str): df where data in source_col should be inserted
             col_nm (_type_, optional): Name of the resulting column. Defaults to None.
         """
-        if col_nm is None:
-            col_nm = source_col
+        col_nm = source_col if not col_nm else col_nm
 
-        _df_temp = self.dict_df[source_df][["year", source_col]]
+        _df_temp = self.dict_df[source_df][["year", source_col]].rename(
+            columns={source_col: col_nm}
+        )
         self.dict_df[target_df] = pd.merge(
             self.dict_df[target_df], _df_temp, on=["year"], how="outer"
         )
@@ -249,71 +290,88 @@ class FinancialAnalyze:
 
     # Second Order Methods
 
+    # TODO Choose better naming
+    @staticmethod
+    def _helper_create_df(step: dict) -> dict:
+        """From a step dict which contains
+        the corresponding method specification
+        for the step and the corresponding meta
+        data
+        Returns:
+            dict: column(s) specification
+        """
+        if step["method"] == "yearly_change":
+            return {
+                "col_nm": step["col_nm"],
+            }
+        if step["method"] == "add_data":
+            return {
+                "col_nm": step["col_nm"],
+                "how": step["how"],
+            }
+        if step["method"] == "compute_ratio":
+            return {
+                "numer_col_nm": step["how"]["numer_col_nm"],
+                "denom_col_nm": step["how"]["denom_col_nm"],
+                "res_col_nm": step["col_nm"],
+            }
+
     def create_df(self, df_nm: str, how: dict) -> None:
         """Workflow function
 
         Args:
             df_nm (str): Target DF (Initialization)
             how (dict): Workflow specification
+                dict "init": "col_nm", "how"
+                dict "add": list with "col_nm", "method","how"
         """
-
-        # dict "init": "col_nm", "how"
-        # dict "add": list with "col_nm", "method","how"
-
         self.generate_yearly_data_norm(
             col_nm=how["init"]["col_nm"], df_nm=df_nm, how=how["init"]["how"]
         )
 
-        if "add" in how.keys():
-            if len(how["add"]) > 0:
-                for step in how["add"]:
+        if not how.get("add"):
+            return
 
-                    if step["method"] == "yearly_change":
-                        self.compute_row_change(col_nm=step["col_nm"], df_nm=df_nm)
-                    elif step["method"] == "add_data":
-                        self.add_yearly_data_norm_new_col(
-                            col_nm=step["col_nm"], df_nm=df_nm, how=step["how"]
-                        )
-                    elif step["method"] == "compute_ratio":
-                        self.compute_ratio(
-                            numer_col_nm=step["how"]["numer_col_nm"],
-                            denom_col_nm=step["how"]["denom_col_nm"],
-                            res_col_nm=step["col_nm"],
-                            df_nm=df_nm,
-                        )
+        for step in how["add"]:
+            getattr(self, step_config[step["method"]]["method"])(
+                **self._helper_create_df(step), df_nm=df_nm
+            )
 
     # Third-Order Methods
     # TODO: Abstract generate_deposit_df by config in df_config
 
-    def generate_df(self,df_nm:str,how_gen:dict):
-        how={}
+    # TODO Choose better naming
+    @staticmethod
+    def _helper_generate_df(step: dict, how_gen: dict):
+        return {
+            "method": step["method"],
+            "col_nm": step["col_nm"],
+            "how": {
+                "yearly_change": None,
+                "add_data": how_gen.get(step.get("col_nm")),
+                "compute_ratio": step.get("how"),
+            }[step["method"]],
+        }
 
-        df_config=config[df_nm]
+    def generate_df(self, df_nm: str, how_gen: dict):
+        how = {}
 
-        how["init"]={}
-        how["init"]["col_nm"]=df_config["init"]["col_nm"]
-        how["init"]["how"]=how_gen[df_config["init"]["col_nm"]]
+        df_config_spec = df_config[df_nm]
 
-        how["add"]=[]
+        how = {
+            "init": {
+                "col_nm": df_config_spec["init"]["col_nm"],
+                "how": how_gen[df_config_spec["init"]["col_nm"]],
+            },
+            "add": [
+                self._helper_generate_df(step=step, how_gen=how_gen)
+                for step in df_config_spec["add"]
+            ],
+        }
 
-        for step in df_config["add"]:
-            how_temp={}
-            how_temp["method"]=step["method"]
-            how_temp["col_nm"]=step["col_nm"]
-            
-            if step["method"]=="yearly_change":
-                pass
-            elif step["method"]=="add_data":
-                how_temp["how"]=how_gen[step["col_nm"]]
-            elif step["method"]=="compute_ratio":
-                how_temp["how"]=step["how"]
-            
-            how["add"].append(how_temp)
+        self.create_df(df_nm=df_nm, how=how)
 
-        self.create_df(df_nm=df_nm,how=how)
-
-        self.dict_df[df_nm]=self.dict_df[df_nm].dropna()
-
+        self.dict_df[df_nm] = self.dict_df[df_nm].dropna()
 
     # Services for labels and descriptions
 
@@ -329,17 +387,12 @@ class FinancialAnalyze:
         Usage e.g. find_in_dict_entry(key='description',query='loan')
         -> Find position for which the word loans occurs in the description
         """
-        li_positions = []
-
-        for position in self.data["facts"]["us-gaap"].keys():
-            if self.data["facts"]["us-gaap"][position][key]:
-                if (
-                    self.data["facts"]["us-gaap"][position][key].lower().find(query)
-                    != -1
-                ):
-                    li_positions.append(position)
-
-        return li_positions
+        return [
+            position
+            for position in self.data["facts"]["us-gaap"].keys()
+            if self.data["facts"]["us-gaap"][position][key]
+            and self.data["facts"]["us-gaap"][position][key].lower().find(query) != -1
+        ]
 
 
 def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAnalyze:
@@ -348,7 +401,7 @@ def generate_fin_analyze_class(cik: str, comp_nm: str, path: str) -> FinancialAn
     given the CIK
     """
     file_nm = "CIK" + cik
-    with open(os.path.join(path, f"{file_nm}.json"),encoding='utf-8') as file:
+    with open(os.path.join(path, f"{file_nm}.json"), encoding="utf-8") as file:
         # Define service
         return FinancialAnalyze(comp_nm=comp_nm, data=json.load(file))
 
@@ -358,13 +411,17 @@ class InterCompaniesAnalyze:
     Class for comparing financials of multiple companies
     """
 
-    def __init__(self, li_comp_obj: List[FinancialAnalyze]) -> None:
+    def __init__(
+        self,
+        li_comp_obj: List[FinancialAnalyze],
+        dict_df: Optional[pd.DataFrame] = None,
+    ) -> None:
         """
         Initialization
         :Inputs: List of FinancialAnalyze Objects
         """
         self.li_comp_obj = li_comp_obj
-        self.dict_df = {}
+        self.dict_df = dict_df if dict_df else {}
 
     def merge_by_quant(self, df_name: str, quantity: str) -> None:
         """
@@ -372,25 +429,14 @@ class InterCompaniesAnalyze:
         different companies
         """
 
-        li_df = []
-
-        for comp_serv in self.li_comp_obj:
-            comp_nm = comp_serv.comp_nm
-
-            if df_name in comp_serv.dict_df.keys():
-                df_comp = comp_serv.dict_df[df_name]
-                li_col_to_drop = [
-                    col
-                    for col in list(df_comp.columns)
-                    if col not in ["year", quantity]
-                ]
-                df_comp = df_comp.drop(columns=li_col_to_drop).rename(
-                    columns={quantity: comp_nm}
-                )
-                li_df.append(df_comp)
+        def _extract_quantity(comp_obj: FinancialAnalyze):
+            return comp_obj.dict_df[df_name][["year", quantity]].rename(
+                columns={quantity: comp_obj.comp_nm}
+            )
 
         self.dict_df[quantity] = reduce(
-            lambda left, right: pd.merge(left, right, on=["year"], how="outer"), li_df
+            lambda left, right: pd.merge(left, right, on=["year"], how="outer"),
+            map(_extract_quantity, self.li_comp_obj),
         )
 
     def plot_df(
