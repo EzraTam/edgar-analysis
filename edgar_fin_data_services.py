@@ -85,7 +85,9 @@ def extract_yearly_data_norm(tag: str, col_nm: str, data: dict) -> pd.DataFrame:
 class FinancialAnalyze:
     """Class for analysing financial data from Edgar dict"""
 
-    def __init__(self, comp_nm: str, data: dict) -> None:
+    def __init__(
+        self, comp_nm: str, data: dict, dict_df: Optional[pd.DataFrame] = None
+    ) -> None:
         """Initialization
 
         Args:
@@ -94,7 +96,7 @@ class FinancialAnalyze:
         """
         self.comp_nm = comp_nm
         self.data = data
-        self.dict_df = {}
+        self.dict_df = dict_df if dict_df else {}
 
     def extract_yearly_data(
         self, tag: str, col_nm: str, norm_mill: bool
@@ -183,7 +185,7 @@ class FinancialAnalyze:
                 lambda df_old, df_add: pd.concat([df_old, df_add], ignore_index=True)
                 .drop_duplicates(ignore_index=True)
                 .sort_values("year", ascending=False, ignore_index=True),
-                [_df_temp, *map(func_fixed, how["add"])],
+                map(func_fixed, how["add"]),
             )
         )
 
@@ -218,7 +220,11 @@ class FinancialAnalyze:
             )
 
     def add_data_from_other_col(
-        self, source_df: str, source_col: str, target_df: str, col_nm:Optional[str]=None
+        self,
+        source_df: str,
+        source_col: str,
+        target_df: str,
+        col_nm: Optional[str] = None,
     ):
         """Function to add data to a given df from other df
 
@@ -230,7 +236,9 @@ class FinancialAnalyze:
         """
         col_nm = source_col if not col_nm else col_nm
 
-        _df_temp = self.dict_df[source_df][["year", source_col]].rename(columns={source_col: col_nm})
+        _df_temp = self.dict_df[source_df][["year", source_col]].rename(
+            columns={source_col: col_nm}
+        )
         self.dict_df[target_df] = pd.merge(
             self.dict_df[target_df], _df_temp, on=["year"], how="outer"
         )
@@ -284,7 +292,7 @@ class FinancialAnalyze:
 
     # TODO Choose better naming
     @staticmethod
-    def _helper_create_df(step: dict)->dict:
+    def _helper_create_df(step: dict) -> dict:
         """From a step dict which contains
         the corresponding method specification
         for the step and the corresponding meta
@@ -325,7 +333,9 @@ class FinancialAnalyze:
             return
 
         for step in how["add"]:
-            getattr(self, step_config[step["method"]]["method"])(**self._helper_create_df(step),df_nm=df_nm)
+            getattr(self, step_config[step["method"]]["method"])(
+                **self._helper_create_df(step), df_nm=df_nm
+            )
 
     # Third-Order Methods
     # TODO: Abstract generate_deposit_df by config in df_config
@@ -401,13 +411,17 @@ class InterCompaniesAnalyze:
     Class for comparing financials of multiple companies
     """
 
-    def __init__(self, li_comp_obj: List[FinancialAnalyze]) -> None:
+    def __init__(
+        self,
+        li_comp_obj: List[FinancialAnalyze],
+        dict_df: Optional[pd.DataFrame] = None,
+    ) -> None:
         """
         Initialization
         :Inputs: List of FinancialAnalyze Objects
         """
         self.li_comp_obj = li_comp_obj
-        self.dict_df = {}
+        self.dict_df = dict_df if dict_df else {}
 
     def merge_by_quant(self, df_name: str, quantity: str) -> None:
         """
@@ -415,24 +429,14 @@ class InterCompaniesAnalyze:
         different companies
         """
 
-        li_df = []
-
-        for comp_serv in self.li_comp_obj:
-            comp_nm = comp_serv.comp_nm
-
-            if df_name in comp_serv.dict_df.keys():
-                df_comp = comp_serv.dict_df[df_name]
-                li_col_to_drop = [col
-                    for col in list(df_comp.columns)
-                    if col not in ["year", quantity]
-                ]
-                df_comp = df_comp.drop(columns=li_col_to_drop).rename(
-                    columns={quantity: comp_nm}
-                )
-                li_df.append(df_comp)
+        def _extract_quantity(comp_obj: FinancialAnalyze):
+            return comp_obj.dict_df[df_name][["year", quantity]].rename(
+                columns={quantity: comp_obj.comp_nm}
+            )
 
         self.dict_df[quantity] = reduce(
-            lambda left, right: pd.merge(left, right, on=["year"], how="outer"), li_df
+            lambda left, right: pd.merge(left, right, on=["year"], how="outer"),
+            map(_extract_quantity, self.li_comp_obj),
         )
 
     def plot_df(
