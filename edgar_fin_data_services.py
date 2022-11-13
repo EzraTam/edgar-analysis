@@ -299,7 +299,7 @@ class FinancialAnalyze:
         for to_compute in list_to_compute:
             self.dict_df[df_nm][to_compute["res_col_nm"]]=self._compute_ratio(self.dict_df[df_nm][to_compute["numer_col_nm"]],self.dict_df[df_nm][to_compute["denom_col_nm"]])
     
-    def generate_df(self, df_nm: str, how_gen: List[Dict[str,Union[List[str],List[int]]]],property:Optional[Dict]=None)->None:
+    def generate_df(self, df_nm: str, how_gen: List[Dict[str,Union[List[str],List[int]]]],add_gen:Optional[Dict]=None)->None:
         """
         Args:
             df_nm (str): Name of dataframe to be generated
@@ -324,18 +324,18 @@ class FinancialAnalyze:
         self.dict_df[df_nm] = self.dict_df[df_nm].dropna()
 
         if df_nm in df_config:
-            property=df_config[df_nm]
+            add_gen=df_config[df_nm]
 
-        if not property:
+        if not add_gen:
             return
         
         # Create yearly change data
-        if "yearly_change" in property:
-            self.compute_row_change_columns(col_nms=property["yearly_change"],df_nm=df_nm)
+        if "yearly_change" in add_gen:
+            self.compute_row_change_columns(col_nms=add_gen["yearly_change"],df_nm=df_nm)
 
-        if "ratio" in property:
+        if "ratio" in add_gen:
             self.compute_ratio_multiple(
-                list_to_compute=property["ratio"], df_nm= df_nm)
+                list_to_compute=add_gen["ratio"], df_nm= df_nm)
 
 
 
