@@ -377,8 +377,6 @@ class FinancialAnalyze:
     # CAGR
     @staticmethod
     def _compute_cagr(begin_value:float,end_value:float,num_years:int)->float:
-        ic(begin_value)
-        ic(end_value)
         return (pow(end_value/begin_value,1/num_years)-1)*100
     
     def compute_yearly_cagr(self,df_nm:str,col_nm:str, interval:Dict[str,int],round_num:Optional[int]=None):
@@ -389,6 +387,16 @@ class FinancialAnalyze:
         result= self._compute_cagr(begin_value=begin_value,end_value=end_value,num_years=num_years)
 
         return result if not round_num else round(result,2) 
+
+    def compute_stats(self,df_nm:str,col_nm:str, interval:Dict[str,int],round_num:Optional[int]=None,show_pd:Optional[bool]=False):
+        stat_to_extract=["mean","median","max","min"]
+
+        _df_temp=self.dict_df[df_nm]
+        _ser_temp=_df_temp[_df_temp["year"].isin(range(interval["begin"],interval["end"]+1))][col_nm]
+
+        stat={stat_method: getattr(pd.Series, stat_method)(_ser_temp) if not round_num else round(getattr(pd.Series, stat_method)(_ser_temp),round_num)  for stat_method in stat_to_extract}
+
+        return stat if not show_pd else pd.DataFrame(data=stat,index=[0])
 
 
     # Services for labels and descriptions
@@ -456,6 +464,28 @@ class InterCompaniesAnalyze:
             lambda left, right: pd.merge(left, right, on=["year"], how="outer"),
             map(_extract_quantity, self.li_comp_obj),
         )
+
+    def compute_cagr(self,df_nm:str,col_nm:str,interval:Dict[str,int],round_num:Optional[int]=None):
+
+        result_cagr=[
+            (
+                comp_obj.comp_nm,
+                comp_obj.compute_yearly_cagr(df_nm=df_nm,col_nm=col_nm, interval=interval,round_num=round_num)
+            ) 
+            for comp_obj in self.li_comp_obj
+        ]
+
+        return pd.DataFrame(result_cagr, columns=["company","cagr"])
+
+    def compute_stats(self,df_nm:str,col_nm:str,interval:Dict[str,int],round_num:Optional[int]=None):
+        dfs=[comp_obj.compute_stats(df_nm=df_nm,col_nm=col_nm,interval=interval,round_num=round_num,show_pd=True) for comp_obj in self.li_comp_obj]
+        columns=dfs[0].columns
+        df=pd.concat(dfs)
+        df["company"]=[comp_obj.comp_nm for comp_obj in self.li_comp_obj]
+        return df.reset_index(drop=True)[["company",*columns]]
+
+
+
 
     def plot_df(
         self, key: str, xlabel: str, ylabel: str, width: float, height: float
