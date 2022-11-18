@@ -19,7 +19,7 @@ import pandas as pd
 from config import df_config
 
 
-def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
+def transform_to_df(data: dict, tag: str, unit:Optional[str]="USD") -> pd.DataFrame:
     """Transform financial data to pandas
 
     Args:
@@ -29,11 +29,11 @@ def transform_to_df(data: dict, tag: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Result Dataframe
     """
-    return pd.DataFrame(data["facts"]["us-gaap"][tag]["units"]["USD"])
+    return pd.DataFrame(data["facts"]["us-gaap"][tag]["units"][unit])
 
 
 def extract_yearly_data(
-    data: dict, tag: str, col_nm: str, norm_mill: Optional[bool] = None
+    data: dict, tag: str, col_nm: str, norm_mill: Optional[bool] = None, unit:Optional[str]="USD"
 ) -> pd.DataFrame:
     """Extract yearly data for a given tag
 
@@ -47,7 +47,7 @@ def extract_yearly_data(
         pd.DataFrame: Resulting dataframe
     """
     # pylint: disable=E1101
-    df_res = transform_to_df(data, tag)
+    df_res = transform_to_df(data, tag,unit)
     df_res = df_res[df_res["fp"] == "FY"]
     df_res["end"] = pd.to_datetime(df_res["end"], format="%Y-%m-%d")
     df_res["year"] = pd.DatetimeIndex(df_res["end"]).year
@@ -243,6 +243,7 @@ class FinancialAnalyze:
         source_col: str,
         target_df: str,
         col_nm: Optional[str] = None,
+        init : Optional[str]= False
     ):
         """Function to add data to a given df from other df
 
@@ -256,8 +257,8 @@ class FinancialAnalyze:
 
         _df_temp = self.dict_df[source_df][["year", source_col]].rename(
             columns={source_col: col_nm}
-        )
-        self.dict_df[target_df] = pd.merge(
+        ) 
+        self.dict_df[target_df] = _df_temp if init else pd.merge(
             self.dict_df[target_df], _df_temp, on=["year"], how="outer"
         )
 
@@ -366,6 +367,10 @@ class FinancialAnalyze:
                 self.dict_df[df_nm] = (
                     self.dict_df[df_nm].drop(gen["drop"]).reset_index(drop=True)
                 )
+
+            if "add_col_from_df" in gen:
+                init= True if how_gen.index(gen)==0 else False
+                self.add_data_from_other_col(source_df=gen["add_col_from_df"],source_col=gen["col_nm"],target_df=df_nm,init=init)
 
 
         self.dict_df[df_nm] = self.dict_df[df_nm].dropna()
@@ -574,6 +579,7 @@ class InterCompaniesAnalyze:
         """
         Plot the comparison table of a certain quantity
         """
+
         df_analyze = self.dict_df[key].melt(
             id_vars=["year"], var_name="company", value_name=key
         )

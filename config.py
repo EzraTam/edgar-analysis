@@ -12,5 +12,9 @@ df_config={
         "yearly_change": ["loan_receivables","interest_loans"],
         "ratio":[{"res_col_nm":"interest_rate_loan_receivables","numer_col_nm":"interest_loans",
         "denom_col_nm":"loan_receivables"}]
+    },
+    "loan_deposit":{
+        "ratio":[{"res_col_nm":"cover_rate_loan_deposit","numer_col_nm":"interest_bearing_deposit_liabilities",
+        "denom_col_nm":"loan_receivables"}]
     }
 }
