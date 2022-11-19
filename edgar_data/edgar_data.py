@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd
 
 def norm_and_rename(method):
+    """ Decorator for EdgarData method
+    This decorator normalize the values to million,
+    and change the corresponding column name
+    """
     def inner(self):
         df_output=method(self)
         if self.norm_mill:
@@ -16,6 +20,8 @@ def norm_and_rename(method):
 
 
 class EdgarData:
+    """Class for processing raw financial data from a company
+    """
     
     def __init__(self,data:List[Dict[str,Union[str,int,float]]],unit:Optional[str]=None,company_name:Optional[str]=None,cik:Optional[str]=None,col_nm:Optional[str]=None, norm_mill: Optional[bool] = None)->None:
         
