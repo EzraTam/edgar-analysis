@@ -167,12 +167,36 @@ class EdgarDataComp:
 
     @property
     def shares_outstanding(self)->pd.DataFrame:
+        """Number of shares outstanding
+        """
         _df_shares=pd.DataFrame(self.data_comp["facts"]["dei"]["EntityCommonStockSharesOutstanding"]["units"]["shares"])[["fy","fp","val"]]
         _df_shares=_df_shares.rename(columns={"fy":"year","fp":"quarter"})
+        if self.interval == "yearly":
+            _df_shares=_df_shares[_df_shares["quarter"]=="FY"]
+            return _df_shares[["year","val"]]
+
         _df_shares.loc[_df_shares["quarter"]=="FY", ['quarter']] = "Q4"
         if self.norm_mill:
             _df_shares["val"]=_df_shares["val"]/1000000
-        return _df_shares.sort_values(["year", "quarter"], ascending=[False,False])
+        return _df_shares.sort_values(["year", "quarter"], ascending=[False,False],ignore_index=True)   
 
+    @property
+    def market_capitalization(self)->pd.DataFrame:
+        """ Market Capitalization
+        """   
+        _df_mc=pd.DataFrame(self.data_comp["facts"]["dei"]['EntityPublicFloat']["units"]["USD"])[["fy","val"]].rename(columns={"fy":"year"}) 
+        if self.norm_mill:
+            _df_mc["val"]=_df_mc["val"]/1_000_000
+        return _df_mc.sort_values("year",ascending=False,ignore_index=True)
 
-        
+    @property
+    def avg_share_price(self)->pd.DataFrame:
+        """Average share price
+        """
+        interval_old=self.interval
+        self.interval="yearly"
+        _df_res=pd.merge(self.shares_outstanding.rename(columns={"val":"so"}),self.market_capitalization.rename(columns={"val":"mc"}),on="year")
+        _df_res["val"]=_df_res["mc"]/_df_res["so"]
+
+        self.interval=interval_old
+        return _df_res.drop(columns=["mc","so"])
